@@ -45,40 +45,57 @@ def sign_request(method: str, path: str, body: dict | None, timestamp_ms: str) -
 
     return signature
 
+import hashlib
+import time
+import requests
+import json
 
-def place_spot_order(symbol: str, side: str, amount: str, order_type: str = "market"):
+COINEX_BASE_URL = "https://api.coinex.com/v2"
+ACCESS_ID = COINEX_ACCESS_ID
+SECRET_KEY = COINEX_SECRET_KEY
+
+def sign_v2(params: dict, secret_key: str):
     """
-    Place a SPOT market order on CoinEx.
+    Generate CoinEx v2 signature using MD5 (uppercase)
     """
-    path = "/spot/order"
+    sorted_params = sorted(params.items())
+    query = "&".join([f"{k}={v}" for k, v in sorted_params])
+    query += f"&secret_key={secret_key}"
+    return hashlib.md5(query.encode()).hexdigest().upper()
+
+
+def place_spot_order(symbol: str, side: str, amount: str):
+    """
+    Place MARKET order on CoinEx API v2
+    """
+    path = "/order/put_market"
     url = COINEX_BASE_URL + path
 
-    body = {
-        "market": symbol,          # e.g. "BTCUSDT"
-        "market_type": "SPOT",
-        "side": side,              # "buy" or "sell"
-        "type": order_type,        # "market"
-        "amount": amount,          # string, e.g. "0.001"
+    tonce = int(time.time() * 1000)
+
+    params = {
+        "market": symbol,
+        "side": side,          # "buy" or "sell"
+        "amount": amount,
+        "access_id": ACCESS_ID,
+        "tonce": tonce
     }
 
-    timestamp_ms = str(int(time.time() * 1000))
-    signature = sign_request("POST", path, body, timestamp_ms)
+    signature = sign_v2(params, SECRET_KEY)
 
     headers = {
         "Content-Type": "application/json",
-        "X-COINEX-KEY": ACCESS_ID,
-        "X-COINEX-SIGN": signature,
-        "X-COINEX-TIMESTAMP": timestamp_ms,
+        "Authorization": signature
     }
 
-    resp = requests.post(url, headers=headers, json=body, timeout=10)
+    resp = requests.post(url, json=params, headers=headers)
     data = resp.json()
 
-    # CoinEx returns {"code":0,"data":{...},"message":"OK"} on success
     if data.get("code") != 0:
-        raise Exception(f"CoinEx error: {data}")
+        raise Exception(f"CoinEx ERROR: {data}")
 
     return data["data"]
+
 
 
 @app.post("/webhook")

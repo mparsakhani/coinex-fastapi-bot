@@ -4,6 +4,11 @@ import hashlib
 import json
 import os
 
+COINEX_BASE_URL = "https://api.coinex.com/v2"
+ACCESS_ID = os.getenv("COINEX_ACCESS_ID")
+SECRET_KEY = os.getenv("COINEX_SECRET_KEY")
+WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
+
 import requests
 from fastapi import FastAPI, Request, HTTPException
 from dotenv import load_dotenv

@@ -50,7 +50,7 @@ def sign_request(method: str, path: str, body: dict | None, timestamp_ms: str) -
 
     return signature
     
-def place_spot_order(symbol: str, side: str, amount: str, order_type: str = "market"):
+def place_spot_order(symbol: str, side: str, amount: str):
     """
     Place MARKET order on CoinEx API v2
     """
@@ -119,13 +119,11 @@ async def tradingview_webhook(request: Request):
 
     # اجرای سفارش
     try:
-        order = place_spot_order(
-            symbol=str(symbol),
-            side=str(action),
-            amount=str(amount),
-            order_type=str(order_type),
-        )
-        print("Order response:", order)
+order = place_spot_order(
+    symbol=str(symbol),
+    side=str(action),
+    amount=str(amount)
+)
 
     except Exception as e:
         print("ORDER ERROR:", e)

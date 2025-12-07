@@ -83,28 +83,38 @@ def place_spot_order(symbol: str, side: str, amount: str, order_type: str = "mar
 
 @app.post("/webhook")
 async def tradingview_webhook(request: Request):
-    # 1) دریافت JSON
     try:
         payload = await request.json()
-    except Exception:
+        print("Received payload:", payload)
+
+    except Exception as e:
+        print("JSON error:", e)
+        import traceback; traceback.print_exc()
         raise HTTPException(status_code=400, detail="Invalid JSON")
 
-    # 2) چک کردن secret
-    if payload.get("secret") != WEBHOOK_SECRET:
-        raise HTTPException(status_code=403, detail="Invalid secret")
+    # چک کردن secret
+    try:
+        if payload.get("secret") != WEBHOOK_SECRET:
+            print("Invalid secret received:", payload.get("secret"))
+            raise HTTPException(status_code=403, detail="Invalid secret")
+    except Exception as e:
+        print("Secret error:", e)
+        import traceback; traceback.print_exc()
+        raise
 
-    # 3) گرفتن پارامترها
-    action = payload.get("action")
-    symbol = payload.get("symbol")
-    amount = payload.get("amount")
-    order_type = payload.get("order_type", "market")
+    # گرفتن اطلاعات
+    try:
+        action = payload.get("action")
+        symbol = payload.get("symbol")
+        amount = payload.get("amount")
+        order_type = payload.get("order_type", "market")
+        print("Parsed data:", action, symbol, amount, order_type)
+    except Exception as e:
+        print("Payload parsing error:", e)
+        import traceback; traceback.print_exc()
+        raise HTTPException(status_code=400, detail="Bad payload")
 
-    if action not in ("buy", "sell"):
-        raise HTTPException(status_code=400, detail="Invalid action")
-
-    if not symbol or amount is None:
-        raise HTTPException(status_code=400, detail="Missing symbol or amount")
-
+    # اجرای سفارش
     try:
         order = place_spot_order(
             symbol=str(symbol),
@@ -112,8 +122,11 @@ async def tradingview_webhook(request: Request):
             amount=str(amount),
             order_type=str(order_type),
         )
+        print("Order response:", order)
+
     except Exception as e:
-        # اگر کوینکس خطا داد، متنش رو برمی‌گردونیم
+        print("ORDER ERROR:", e)
+        import traceback; traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Order failed: {e}")
 
     return {"status": "ok", "order": order}

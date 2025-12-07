@@ -44,26 +44,7 @@ def sign_request(method: str, path: str, body: dict | None, timestamp_ms: str) -
     ).hexdigest()
 
     return signature
-
-import hashlib
-import time
-import requests
-import json
-
-COINEX_BASE_URL = "https://api.coinex.com/v2"
-ACCESS_ID = COINEX_ACCESS_ID
-SECRET_KEY = COINEX_SECRET_KEY
-
-def sign_v2(params: dict, secret_key: str):
-    """
-    Generate CoinEx v2 signature using MD5 (uppercase)
-    """
-    sorted_params = sorted(params.items())
-    query = "&".join([f"{k}={v}" for k, v in sorted_params])
-    query += f"&secret_key={secret_key}"
-    return hashlib.md5(query.encode()).hexdigest().upper()
-
-
+    
 def place_spot_order(symbol: str, side: str, amount: str):
     """
     Place MARKET order on CoinEx API v2
@@ -74,8 +55,8 @@ def place_spot_order(symbol: str, side: str, amount: str):
     tonce = int(time.time() * 1000)
 
     params = {
-        "market": symbol,
-        "side": side,          # "buy" or "sell"
+        "market": symbol.upper(),   # IMPORTANT
+        "side": side,               # "buy" or "sell"
         "amount": amount,
         "access_id": ACCESS_ID,
         "tonce": tonce

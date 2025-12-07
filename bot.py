@@ -1,41 +1,31 @@
-import os
+from fastapi import FastAPI, Request, HTTPException
+import requests
 import time
 import hashlib
-import hmac
-import json
-import requests
-from fastapi import FastAPI, Request, HTTPException
+import os
 
 app = FastAPI()
 
-# -----------------------------------------------------
-#  Load environment variables safely
-# -----------------------------------------------------
-COINEX_ACCESS_ID = os.getenv("COINEX_ACCESS_ID")
-COINEX_SECRET_KEY = os.getenv("COINEX_SECRET_KEY")
+# ---------- ENV ----------
+COINEX_BASE_URL = "https://api.coinex.com/v2"
+ACCESS_ID = os.getenv("COINEX_ACCESS_ID")
+SECRET_KEY = os.getenv("COINEX_SECRET_KEY")
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
 
-if not COINEX_ACCESS_ID or not COINEX_SECRET_KEY:
-    raise Exception("Environment variables for API keys are missing!")
-
-COINEX_BASE_URL = "https://api.coinex.com/v2"
+if not ACCESS_ID or not SECRET_KEY or not WEBHOOK_SECRET:
+    raise Exception("❌ ENV variables (ACCESS_ID / SECRET_KEY / WEBHOOK_SECRET) not set")
 
 
-# -----------------------------------------------------
-#  Generate MD5 signature for CoinEx v2
-# -----------------------------------------------------
-def sign_v2(params: dict, secret: str):
+# ---------- SIGN V2 ----------
+def sign_v2(params: dict, secret: str) -> str:
     sorted_params = sorted(params.items())
     query = "&".join([f"{k}={v}" for k, v in sorted_params])
     raw = f"{query}&secret_key={secret}"
-    signature = hashlib.md5(raw.encode()).hexdigest().upper()
-    return signature
+    return hashlib.md5(raw.encode()).hexdigest()
 
 
-# -----------------------------------------------------
-#  Place SPOT market order (CoinEx API v2)
-# -----------------------------------------------------
-def place_spot_order(symbol: str, side: str, amount: str):
+# ---------- ORDER FUNCTION ----------
+def place_spot_order(symbol: str, side: str, amount: str, order_type="market"):
     path = "/spot/order"
     url = COINEX_BASE_URL + path
     tonce = int(time.time() * 1000)
@@ -44,59 +34,69 @@ def place_spot_order(symbol: str, side: str, amount: str):
         "market": symbol.upper(),
         "side": side,
         "amount": amount,
-        "access_id": COINEX_ACCESS_ID,
-        "tonce": tonce,
+        "type": order_type,          # market / limit
+        "access_id": ACCESS_ID,
+        "tonce": tonce
     }
 
-    signature = sign_v2(params, COINEX_SECRET_KEY)
+    signature = sign_v2(params, SECRET_KEY)
 
     headers = {
         "Content-Type": "application/json",
         "Authorization": signature
     }
 
-    # Send request
     resp = requests.post(url, json=params, headers=headers, timeout=10)
-    data = resp.json()
+    
+    try:
+        data = resp.json()
+    except:
+        raise Exception(f"❌ Invalid JSON from CoinEx: {resp.text}")
 
     if data.get("code") != 0:
-        raise Exception(f"CoinEx error: {data}")
+        raise Exception(f"❌ CoinEx error: {data}")
 
     return data["data"]
 
 
-# -----------------------------------------------------
-#  TradingView Webhook Endpoint
-# -----------------------------------------------------
+# ---------- WEBHOOK ----------
 @app.post("/webhook")
-async def webhook(request: Request):
+async def tradingview_webhook(request: Request):
     try:
         payload = await request.json()
     except:
-        raise HTTPException(400, "Invalid JSON")
+        raise HTTPException(status_code=400, detail="Invalid JSON")
 
-    # Validate secret
+    # Validate webhook secret
     if payload.get("secret") != WEBHOOK_SECRET:
-        raise HTTPException(403, "Invalid secret")
+        raise HTTPException(status_code=403, detail="Invalid secret")
 
-    # Extract fields
     action = payload.get("action")
     symbol = payload.get("symbol")
-    amount = payload.get("amount")
+    amount = payload.get("amount", "0.001")
+    order_type = payload.get("order_type", "market")
 
     if action not in ("buy", "sell"):
-        raise HTTPException(400, "Invalid action")
-    if not symbol or not amount:
-        raise HTTPException(400, "Missing symbol or amount")
+        raise HTTPException(status_code=400, detail="Invalid action")
 
+    if not symbol or not amount:
+        raise HTTPException(status_code=400, detail="Missing symbol or amount")
+
+    # Execute order
     try:
-        order = place_spot_order(symbol, action, str(amount))
+        order = place_spot_order(
+            symbol=str(symbol),
+            side=str(action),
+            amount=str(amount),
+            order_type=str(order_type)
+        )
     except Exception as e:
-        raise HTTPException(500, f"Order failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Order failed: {e}")
 
     return {"status": "ok", "order": order}
 
 
+# ---------- ROOT ----------
 @app.get("/")
-def home():
-    return {"status": "running", "message": "CoinEx Trading Bot OK!"}
+def root():
+    return {"status": "running"}

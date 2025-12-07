@@ -50,7 +50,7 @@ def sign_request(method: str, path: str, body: dict | None, timestamp_ms: str) -
 
     return signature
     
-def place_spot_order(symbol: str, side: str, amount: str):
+def place_spot_order(symbol: str, side: str, amount: str, order_type: str = "market"):
     """
     Place MARKET order on CoinEx API v2
     """

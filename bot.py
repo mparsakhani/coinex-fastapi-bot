@@ -118,17 +118,18 @@ async def tradingview_webhook(request: Request):
         raise HTTPException(status_code=400, detail="Bad payload")
 
     # اجرای سفارش
-    try:
-order = place_spot_order(
-    symbol=str(symbol),
-    side=str(action),
-    amount=str(amount)
-)
+try:
+    order = place_spot_order(
+        symbol=str(symbol),
+        side=str(action),
+        amount=str(amount)
+    )
+    print("Order response:", order)
 
-    except Exception as e:
-        print("ORDER ERROR:", e)
-        import traceback; traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Order failed: {e}")
+except Exception as e:
+    print("ORDER ERROR:", e)
+    import traceback; traceback.print_exc()
+    raise HTTPException(status_code=500, detail=f"Order failed: {e}")
 
     return {"status": "ok", "order": order}
 
